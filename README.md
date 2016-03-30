@@ -1,12 +1,14 @@
+Debian on ZFS Root installation script
+======================================
 
 The purpose of the script is to make the installation easy.
 
 This is based on [ZFS on linux howto ](https://github.com/zfsonlinux/pkg-zfs/wiki/HOWTO-install-Debian-GNU-Linux-to-a-Native-ZFS-Root-Filesystem).
 
-Install Debian on ZFS Root
-==========================
+Install procedure
+=================
 
-Here is the installation steps :
+The installation is only the 4 following steps :
 
 * Boot on a Debian Live CDROM/Whatever (login: user, password: live)
 * Download the installation script with wget and customize it
