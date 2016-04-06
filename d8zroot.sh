@@ -80,21 +80,21 @@ apt-get install -y tree htop ssh
 # customize your rpool setup
 function do_rpool {
 
-zpool create -o ashift=12 -o altroot=/mnt -m none ${POOL} ${PARTZROOT}
-zfs set atime=off                                 ${POOL}
+zpool create -o ashift=12 -o altroot=/mnt -m none              ${POOL} ${PARTZROOT}
+zfs set atime=off                                              ${POOL}
 
-zfs create -o mountpoint=none                                              ${POOL}/ROOT
-zfs create -o mountpoint=/                                                 ${POOL}/ROOT/debian-1
+zfs create -o mountpoint=none                                  ${POOL}/ROOT
+zfs create -o mountpoint=/                                     ${POOL}/ROOT/debian-1
 
-zpool set bootfs=${POOL}/ROOT/debian-1                                     ${POOL}
+zpool set bootfs=${POOL}/ROOT/debian-1                         ${POOL}
 
-zfs create -o mountpoint=/home                                             ${POOL}/home
-zfs create -o mountpoint=/usr -o canmount=off                              ${POOL}/usr
-zfs create -o mountpoint=/var                                              ${POOL}/var
-zfs create -o compression=lz4 -o atime=on                                  ${POOL}/var/mail
-zfs create -o compression=lz4 -o setuid=off -o exec=off                    ${POOL}/var/log
-zfs create -o compression=lz4 -o setuid=off -o exec=off                    ${POOL}/var/tmp
-zfs create -o mountpoint=/tmp -o compression=lz4 -o setuid=off -o exec=off ${POOL}/tmp
+zfs create -o mountpoint=/home                                 ${POOL}/home
+zfs create -o mountpoint=/usr                                  ${POOL}/usr
+zfs create -o mountpoint=/var                                  ${POOL}/var
+zfs create -o compression=lz4 -o atime=on                      ${POOL}/var/mail
+zfs create -o compression=lz4 -o setuid=off -o exec=off        ${POOL}/var/log
+zfs create -o compression=lz4 -o setuid=off -o exec=off        ${POOL}/var/tmp
+zfs create -o mountpoint=/tmp -o compression=lz4 -o setuid=off ${POOL}/tmp
 
 }
 
@@ -197,26 +197,6 @@ ucf --purge /boot/grub/menu.lst
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::="--force-confnew" --force-yes -fuy dist-upgrade
 #apt-get dist-upgrade
-
-echo "==========================================================="
-echo "==="
-echo "=== Patching zfs-mount"
-echo "==="
-
-cd /lib/systemd/system/
-cp -v zfs-mount.service zfs-mount.service.orig
-patch --verbose -p0 << __EOP
---- zfs-mount.service.orig
-+++ zfs-mount.service
-@@ -8,6 +8,7 @@
- After=zfs-import-cache.service
- After=zfs-import-scan.service
- Before=local-fs.target
-+Before=systemd-remount-fs.service
-
- [Service]
- Type=oneshot
-__EOP
 
 _EOF
 
