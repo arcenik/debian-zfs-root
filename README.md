@@ -58,10 +58,10 @@ Command :
     $ sudo bash d8zroot.sh
 
 * format and load the LUKS volume
-** confirm the volume formating with YES (in capital)
-** enter and confirm the password
-** at this point you may need to swap to another console and generate some entropy by entering random things on the keyboard.
-** enter the password again to load the LUKS volume
+ * confirm the volume formating with YES (in capital)
+ * enter and confirm the password
+ * at this point you may need to swap to another console and generate some entropy by entering random things on the keyboard.
+ * enter the password again to load the LUKS volume
 
 Serving files from a local server
 =================================
