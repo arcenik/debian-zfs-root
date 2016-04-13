@@ -5,6 +5,15 @@
 # Copyright : Francois Scala @2016
 # License   : GPL v3
 #
+#
+# Disk schema :
+# +-- DISK -------------------------------------------------------------------+
+# | +-Part 4---+ +-Part 1--+ +-Part 2----+ +-Part 3-------------------------+ |
+# | | BIOS EFI | | Ext4    | | Swap      | | ZFS root                       | |
+# | |          | | /boot   | |           | |                                | |
+# | +----------+ +---------+ +-----------+ +--------------------------------+ |
+# +---------------------------------------------------------------------------+
+#
 ###############################################################################
 
 # Debian
@@ -16,36 +25,8 @@ DEBIANMIRROR="http://ftp.ch.debian.org/debian"
 POOL=rpool
 ZFSRELEASE=zfsonlinux_6_all.deb
 
-###############################################################################
-# customize your partition scheme here
-function do_partitions {
-
-DISK=/dev/sda
-PARTBOOT=${DISK}1
-PARTSWAP=${DISK}2
-PARTZROOT=${DISK}3
-BOOTPARAM=${DISK}
-
-apt-get update
-apt-get install -y gdisk
-
-sgdisk --clear  ${DISK}
-sgdisk -n 1::+1G    -c 1:"BOOT"  -t 1:8300 ${DISK}
-sgdisk -n 2::+2G    -c 2:"SWAP"  -t 2:8200 ${DISK}
-sgdisk -n 3::       -c 3:"ZROOT" -t 3:bf00 ${DISK}
-sgdisk -n 4:34:2047 -c 4:"BIOS"  -t 4:ef02 ${DISK}
-
-# DEBUG : to reinstall on existing system
-#dd if=/dev/zero of=${DISK}1 bs=1M count=1
-#dd if=/dev/zero of=${DISK}2 bs=1M count=1
-#dd if=/dev/zero of=${DISK}3 bs=1M count=1
-
-mkfs.ext4 -L BOOT ${PARTBOOT}
-
-mkswap -f -L SWAP ${PARTSWAP}
-#swapon -va
-
-}
+# Default grub options
+BOOT_OPTIONS="quiet vga=794"
 
 ###############################################################################
 # customize your root password, user account here and other parameters
@@ -70,9 +51,42 @@ locale-gen C.UTF-8
 export LANG=C.UTF-8
 
 # Misc
-apt-get install -y tree htop ssh
+DEBIAN_FRONTEND=noninteractive apt-get install -y tree htop ssh strace mc vim
 
 # Automation (puppet, cfengine, ...)
+
+}
+
+###############################################################################
+# customize your partition scheme here
+function do_partitions {
+
+DISK=/dev/sda
+PARTBOOT=${DISK}1
+PARTSWAP=${DISK}2
+PARTZROOT=${DISK}3
+BOOTPARAM=${DISK}
+
+apt-get update
+apt-get install -y gdisk
+
+sgdisk --clear  ${DISK}
+sgdisk -n 1::+512M  -c 1:"BOOT"  -t 1:8300 ${DISK}
+sgdisk -n 2::+2G    -c 2:"SWAP"  -t 2:8200 ${DISK}
+sgdisk -n 3::       -c 3:"ZROOT" -t 3:bf00 ${DISK}
+sgdisk -n 4:34:2047 -c 4:"BIOS"  -t 4:ef02 ${DISK}
+
+# DEBUG : to reinstall on existing system
+#dd if=/dev/zero of=${DISK}1 bs=1M count=1
+#dd if=/dev/zero of=${DISK}2 bs=1M count=1
+#dd if=/dev/zero of=${DISK}3 bs=1M count=1
+
+# /boot
+mkfs.ext4 -L BOOT ${PARTBOOT}
+
+# Swap
+mkswap -f -L SWAP ${PARTSWAP}
+#swapon -va
 
 }
 
@@ -89,7 +103,7 @@ zfs create -o mountpoint=/                                     ${POOL}/ROOT/debi
 zpool set bootfs=${POOL}/ROOT/debian-1                         ${POOL}
 
 zfs create -o mountpoint=/home                                 ${POOL}/home
-zfs create -o mountpoint=/usr                                  ${POOL}/usr
+#zfs create -o mountpoint=/usr                                  ${POOL}/usr # separated /usr unsupported by systemd
 zfs create -o mountpoint=/var                                  ${POOL}/var
 zfs create -o compression=lz4 -o atime=on                      ${POOL}/var/mail
 zfs create -o compression=lz4 -o setuid=off -o exec=off        ${POOL}/var/log
@@ -154,10 +168,13 @@ cp /etc/hostname /mnt/etc/
 cp /etc/hosts /mnt/etc/
 cp ${ZFSRELEASE} /mnt/tmp/
 
+echo "Generate fstab"
 cat > /mnt/etc/fstab << _EOF
 LABEL=BOOT	/boot	ext4	noatime	0	1
+LABEL=SWAP	none	swap	defaults	0	0
 _EOF
 
+echo "Generate network/interfaces"
 cat > /mnt/etc/network/interfaces << _EOF
 # interfaces(5) file used by ifup(8) and ifdown(8)
 auto lo
@@ -196,7 +213,14 @@ ucf --purge /boot/grub/menu.lst
 
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::="--force-confnew" --force-yes -fuy dist-upgrade
-#apt-get dist-upgrade
+
+###############################################################################
+# patch grub
+echo "Set grub default config"
+cp /etc/default/grub /etc/default/grub.orig
+echo "default/grub : GRUB_CMDLINE_LINUX_DEFAULT"
+sed -i "s-GRUB_CMDLINE_LINUX_DEFAULT=\"quiet-GRUB_CMDLINE_LINUX_DEFAULT=\"${BOOT_OPTIONS}-" /etc/default/grub
+update-grub
 
 _EOF
 
@@ -210,7 +234,11 @@ mount --bind /dev  /mnt/dev
 mount --bind /proc /mnt/proc
 mount --bind /sys  /mnt/sys
 
-chroot /mnt bash /tmp/chroot.sh 2>&1 /mnt/root/install-chroot.log
+chroot /mnt bash /tmp/chroot.sh 2>&1 | tee /mnt/root/install-chroot.log
+
+# XXX Uncomment this to inspect/hack the system before the final unmount and reboot
+#echo "XXXXXXXXXXXXXXXXXXXXXXX Confirm to unmount"
+#read bla
 
 umount /mnt/boot
 umount /mnt/dev
